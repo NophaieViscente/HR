@@ -265,16 +265,17 @@ class SendDataNeo4j:
 
 class GraphBuilder:
     """
-    Class for building a NetworkX graph from Neo4j data.
+    This module provides a GraphBuilder class to interact with a Neo4j graph database and build a NetworkX graph based on the retrieved data.
 
-    Parameters
-    ----------
-    uri : str
-        URI of the Neo4j database.
-    user : str
-        Username to authenticate in the Neo4j database.
-    password : str
-        Password to authenticate in the Neo4j database.
+    Classes:
+
+    GraphBuilder: Provides methods to connect to a Neo4j database, execute Cypher queries and build a NetworkX graph based on the retrieved data.
+    Methods:
+
+    init(self, uri, user, password): Initializes the class with the uri, user and password to connect to the Neo4j database.
+    close(self): Closes the connection to the Neo4j database.
+    _run_query(tx, query: str): Runs a query on the Neo4j database.
+    build (self, query:str, limit_entities_return:int=200) -> nx : Builds a NetworkX graph based on the retrieved data from the Neo4j database.
     """
 
     def __init__(self, uri, user, password):
@@ -291,7 +292,6 @@ class GraphBuilder:
             Password to authenticate in the Neo4j database.
         """
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
-        self.graph = nx.MultiDiGraph()
 
     def close(self):
         """
@@ -316,84 +316,54 @@ class GraphBuilder:
         List of records from the executed query.
         """
         result = tx.run(query)
-        return result.data()
+        return result
 
-    def add_node(self, node):
+    def build(self, query: str, limit_entities_return: int = 200) -> nx:
         """
-        Adds a node to the graph if it hasn't already been added.
+        Builds a graph using the networkx library.
 
-        Parameters
-        ----------
-        node : neo4j.graph.Node
-            The node to add to the graph.
-        """
-        # Adds node id it hasn't already been added
-        u = node.id
-        if self.graph.has_node(u):
-            return
-        self.graph.add_node(u, labels=node._labels, properties=dict(node))
+        Parameters:
+        -----------
+        query : str
+            Cypher query to be executed in the Neo4j database.
+        limit_entities_return : int, optional
+            Maximum number of nodes to return in the graph (default is 200).
 
-    def add_edge(self, relation):
+        Returns:
+        --------
+        A graph object.
         """
-        Adds an edge to the graph if it hasn't already been added.
 
-        Parameters
-        ----------
-        relation : neo4j.graph.Relationship
-            The relationship to add to the graph.
-        """
-        # Adds edge if it hasn't already been added.
-        # Make sure the nodes at both ends are created
-        for node in (relation.start_node, relation.end_node):
-            self.add_node(node)
-        # Check if edge already exists
-        u = relation.start_node.id
-        v = relation.end_node.id
-        eid = relation.id
-        if self.graph.has_edge(u, v, key=eid):
-            return
-        # If not, create it
-        self.graph.add_edge(
-            u, v, key=eid, type_=relation.type, properties=dict(relation)
+        query += f" LIMIT {limit_entities_return}"
+
+        response = self.driver.session().run(query)
+
+        G = nx.MultiDiGraph()
+
+        nodes = list(response.graph()._nodes.values())
+        for node in nodes:
+            G.add_node(
+                node._properties["name"],
+                labels=node._labels,
+                properties=node._properties,
+            )
+
+        rels = list(response.graph()._relationships.values())
+        for rel in rels:
+            G.add_edge(
+                rel.nodes[0]._properties["name"],
+                rel.nodes[1]._properties["name"],
+                key=rel.element_id,
+                type=rel.type,
+                properties=rel._properties,
+            )
+
+        pos = nx.spring_layout(G)
+        plt.figure(figsize=(25, 5))
+        nx.draw(
+            G, pos, with_labels=True, width=0.8, node_color="lightblue", node_size=2500
         )
 
-    def build(self, query):
-        """
-        Builds a NetworkX graph from the data returned by a Cypher query.
+        self.close()
 
-        Parameters
-        ----------
-        query : str
-            The Cypher query to execute.
-
-        Returns
-        -------
-        networkx.MultiDiGraph
-            The constructed NetworkX graph.
-        """
-        with self.driver.session() as session:
-            data = session.execute_read(self._run_query, query)
-        for d in data:
-            for entry in d.values():
-                # Parse node
-                if isinstance(entry, Node):
-                    self.add_node(entry)
-
-                # Parse link
-                elif isinstance(entry, Relationship):
-                    self.add_edge(entry)
-                else:
-                    raise TypeError("Unrecognized object")
-        return self.graph
-
-    def plot_graph(self, **options):
-        """
-        Plots the constructed graph using NetworkX.
-
-        Parameters
-        ----------
-        **options
-            Additional keyword arguments to pass to `networkx.draw_networkx`.
-        """
-        nx.draw_networkx(self.graph, **options)
-        plt.show()
+        return plt.show()
