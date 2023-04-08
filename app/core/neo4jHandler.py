@@ -1,8 +1,13 @@
 import pandas as pd
-from neo4j import GraphDatabase
 import numpy as np
 import math
 from typing import List
+import matplotlib.pyplot as plt
+
+### Graph Libs ###
+from neo4j import GraphDatabase
+from neo4j.graph import Node, Relationship
+import networkx as nx
 
 
 class SendDataNeo4j:
@@ -256,3 +261,139 @@ class SendDataNeo4j:
                     ),
                 )
                 print(f">> Save edge {index}")
+
+
+class GraphBuilder:
+    """
+    Class for building a NetworkX graph from Neo4j data.
+
+    Parameters
+    ----------
+    uri : str
+        URI of the Neo4j database.
+    user : str
+        Username to authenticate in the Neo4j database.
+    password : str
+        Password to authenticate in the Neo4j database.
+    """
+
+    def __init__(self, uri, user, password):
+        """
+        Initializes the class with the uri, user and password to connect to the Neo4j database.
+
+        Parameters
+        ----------
+        uri : str
+            URI of the Neo4j database.
+        user : str
+            Username to authenticate in the Neo4j database.
+        password : str
+            Password to authenticate in the Neo4j database.
+        """
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+        self.graph = nx.MultiDiGraph()
+
+    def close(self):
+        """
+        Closes the connection to the Neo4j database.
+        """
+        self.driver.close()
+
+    @staticmethod
+    def _run_query(tx, query: str):
+        """
+        Runs a query on the Neo4j database.
+
+        Parameters
+        ----------
+        tx :
+            Session object for the Neo4j database.
+        query : str
+            Cypher query to be executed in the Neo4j database.
+
+        Returns
+        -------
+        List of records from the executed query.
+        """
+        result = tx.run(query)
+        return result.data()
+
+    def add_node(self, node):
+        """
+        Adds a node to the graph if it hasn't already been added.
+
+        Parameters
+        ----------
+        node : neo4j.graph.Node
+            The node to add to the graph.
+        """
+        # Adds node id it hasn't already been added
+        u = node.id
+        if self.graph.has_node(u):
+            return
+        self.graph.add_node(u, labels=node._labels, properties=dict(node))
+
+    def add_edge(self, relation):
+        """
+        Adds an edge to the graph if it hasn't already been added.
+
+        Parameters
+        ----------
+        relation : neo4j.graph.Relationship
+            The relationship to add to the graph.
+        """
+        # Adds edge if it hasn't already been added.
+        # Make sure the nodes at both ends are created
+        for node in (relation.start_node, relation.end_node):
+            self.add_node(node)
+        # Check if edge already exists
+        u = relation.start_node.id
+        v = relation.end_node.id
+        eid = relation.id
+        if self.graph.has_edge(u, v, key=eid):
+            return
+        # If not, create it
+        self.graph.add_edge(
+            u, v, key=eid, type_=relation.type, properties=dict(relation)
+        )
+
+    def build(self, query):
+        """
+        Builds a NetworkX graph from the data returned by a Cypher query.
+
+        Parameters
+        ----------
+        query : str
+            The Cypher query to execute.
+
+        Returns
+        -------
+        networkx.MultiDiGraph
+            The constructed NetworkX graph.
+        """
+        with self.driver.session() as session:
+            data = session.execute_read(self._run_query, query)
+        for d in data:
+            for entry in d.values():
+                # Parse node
+                if isinstance(entry, Node):
+                    self.add_node(entry)
+
+                # Parse link
+                elif isinstance(entry, Relationship):
+                    self.add_edge(entry)
+                else:
+                    raise TypeError("Unrecognized object")
+        return self.graph
+
+    def plot_graph(self, **options):
+        """
+        Plots the constructed graph using NetworkX.
+
+        Parameters
+        ----------
+        **options
+            Additional keyword arguments to pass to `networkx.draw_networkx`.
+        """
+        nx.draw_networkx(self.graph, **options)
+        plt.show()
