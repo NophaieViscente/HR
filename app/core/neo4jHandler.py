@@ -350,5 +350,6 @@ class GraphBuilder:
         )
 
         self.close()
+        plt.show()
 
-        return plt.show()
+        return G
