@@ -3,6 +3,7 @@ import numpy as np
 import math
 from typing import List
 import matplotlib.pyplot as plt
+import scipy
 
 ### Graph Libs ###
 from neo4j import GraphDatabase
@@ -300,7 +301,11 @@ class GraphBuilder:
         self.driver.close()
 
     def build(
-        self, property_node: str, query: str, limit_entities_return: int = 200
+        self,
+        property_node: str,
+        query: str,
+        limit_return: bool = True,
+        limit_entities_return: int = 200,
     ) -> nx:
         """
         Builds a graph using the networkx library.
@@ -313,8 +318,8 @@ class GraphBuilder:
         Returns:
             A graph object.
         """
-
-        query += f" LIMIT {limit_entities_return}"
+        if limit_return:
+            query += f" LIMIT {limit_entities_return}"
 
         response = self.driver.session().run(query)
 
