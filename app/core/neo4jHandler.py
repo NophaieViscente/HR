@@ -299,39 +299,19 @@ class GraphBuilder:
         """
         self.driver.close()
 
-    @staticmethod
-    def _run_query(tx, query: str):
-        """
-        Runs a query on the Neo4j database.
-
-        Parameters
-        ----------
-        tx :
-            Session object for the Neo4j database.
-        query : str
-            Cypher query to be executed in the Neo4j database.
-
-        Returns
-        -------
-        List of records from the executed query.
-        """
-        result = tx.run(query)
-        return result
-
-    def build(self, query: str, limit_entities_return: int = 200) -> nx:
+    def build(
+        self, property_node: str, query: str, limit_entities_return: int = 200
+    ) -> nx:
         """
         Builds a graph using the networkx library.
 
         Parameters:
-        -----------
-        query : str
-            Cypher query to be executed in the Neo4j database.
-        limit_entities_return : int, optional
-            Maximum number of nodes to return in the graph (default is 200).
+            property_node (str): The name of the node property to use as the node label.
+            query (str): The Cypher query to be executed in the Neo4j database.
+            limit_entities_return (int, optional): Maximum number of nodes to return in the graph (default is 200).
 
         Returns:
-        --------
-        A graph object.
+            A graph object.
         """
 
         query += f" LIMIT {limit_entities_return}"
@@ -343,7 +323,7 @@ class GraphBuilder:
         nodes = list(response.graph()._nodes.values())
         for node in nodes:
             G.add_node(
-                node._properties["name"],
+                node._properties[property_node],
                 labels=node._labels,
                 properties=node._properties,
             )
@@ -351,8 +331,8 @@ class GraphBuilder:
         rels = list(response.graph()._relationships.values())
         for rel in rels:
             G.add_edge(
-                rel.nodes[0]._properties["name"],
-                rel.nodes[1]._properties["name"],
+                rel.nodes[0]._properties[property_node],
+                rel.nodes[1]._properties[property_node],
                 key=rel.element_id,
                 type=rel.type,
                 properties=rel._properties,
