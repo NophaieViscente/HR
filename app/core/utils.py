@@ -16,7 +16,7 @@ class UtilsEDA:
                 round(
                     dataframe.loc[dataframe["codCBO"] == code]
                     .groupby(group_by)
-                    .mean(numeric_only=True),
+                    .median(numeric_only=True),
                     2,
                 )[return_data]
             )
