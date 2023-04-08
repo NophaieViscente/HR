@@ -344,7 +344,7 @@ class GraphBuilder:
             )
 
         pos = nx.spring_layout(G)
-        plt.figure(figsize=(25, 5))
+        plt.figure(figsize=(25, 8))
         nx.draw(
             G, pos, with_labels=True, width=0.8, node_color="lightblue", node_size=2500
         )
