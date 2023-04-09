@@ -323,7 +323,7 @@ class GraphBuilder:
 
         response = self.driver.session().run(query)
 
-        G = nx.MultiDiGraph()
+        G = nx.Graph()
 
         nodes = list(response.graph()._nodes.values())
         for node in nodes:
