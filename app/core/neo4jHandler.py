@@ -7,7 +7,6 @@ import scipy
 
 ### Graph Libs ###
 from neo4j import GraphDatabase
-from neo4j.graph import Node, Relationship
 import networkx as nx
 
 
